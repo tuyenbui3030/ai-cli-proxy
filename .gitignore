@@ -1,0 +1,6 @@
+# Sensitive files
+auth/*.json
+.env
+
+# Logs
+*.log

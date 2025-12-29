@@ -1,0 +1,49 @@
+services:
+  cli-proxy-api:
+    image: eceasy/cli-proxy-api:latest
+    container_name: cli-proxy-api
+    restart: always
+    ports:
+      - "${PORT:-8317}:8317"
+    volumes:
+      - ./config.yaml:/CLIProxyAPI/config.yaml
+      - ./auth:/root/.cli-proxy-api
+    environment:
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8317/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Cron scheduler for model warmup at 7am daily
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia
+    restart: always
+    depends_on:
+      - cli-proxy-api
+    environment:
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - TRIGGER_API_KEY=${TRIGGER_API_KEY:-sk-change-this-api-key}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./ofelia.ini:/etc/ofelia/config.ini
+    command: daemon --config=/etc/ofelia/config.ini
+
+  # Watchtower for auto-updates
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=${UPDATE_INTERVAL:-3600}
+      - WATCHTOWER_INCLUDE_STOPPED=false
+    command: cli-proxy-api
+    profiles:
+      - autoupdate
