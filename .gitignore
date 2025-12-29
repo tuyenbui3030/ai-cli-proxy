@@ -1,6 +1,7 @@
 # Sensitive files
 auth/*.json
 .env
+config.yaml
 
 # Logs
 *.log
