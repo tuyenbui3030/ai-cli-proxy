@@ -45,5 +45,3 @@ services:
       - WATCHTOWER_POLL_INTERVAL=${UPDATE_INTERVAL:-3600}
       - WATCHTOWER_INCLUDE_STOPPED=false
     command: cli-proxy-api
-    profiles:
-      - autoupdate
