@@ -41,13 +41,23 @@ services:
         echo "Starting backup service (interval: $${BACKUP_INTERVAL}m, retention: $${BACKUP_RETENTION_DAYS} days)"
         while true; do
           TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
-          # Export to timestamped file
-          curl -s -o /backups/usage-$${TIMESTAMP}.json \
+          TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
+          # Export to temp file first
+          curl -s -o "$${TEMP_FILE}" \
             -H "Authorization: Bearer $${API_TOKEN}" \
             "$${API_URL}/v0/management/usage/export"
-          # Copy to latest
-          cp /backups/usage-$${TIMESTAMP}.json /backups/usage-latest.json
-          echo "$$(date): Backup saved to usage-$${TIMESTAMP}.json"
+          # Check if export has valid data (total_requests > 0)
+          TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
+          if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
+            # Valid data - save timestamped and update latest
+            mv "$${TEMP_FILE}" /backups/usage-$${TIMESTAMP}.json
+            cp /backups/usage-$${TIMESTAMP}.json /backups/usage-latest.json
+            echo "$$(date): Backup saved to usage-$${TIMESTAMP}.json ($$TOTAL_REQUESTS requests)"
+          else
+            # Empty data - skip updating latest
+            rm -f "$${TEMP_FILE}"
+            echo "$$(date): Skipped backup - no data (total_requests=$$TOTAL_REQUESTS)"
+          fi
           # Cleanup old backups (keep last N days)
           find /backups -name "usage-*.json" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json" -delete
           sleep $$((BACKUP_INTERVAL * 60))
