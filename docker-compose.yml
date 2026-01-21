@@ -10,6 +10,12 @@ services:
       - ./auth:/root/.cli-proxy-api
     environment:
       - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - HTTP_PROXY=${SOCKS5_PROXY}
+      - HTTPS_PROXY=${SOCKS5_PROXY}
+      - ALL_PROXY=${SOCKS5_PROXY}
+      - http_proxy=${SOCKS5_PROXY}
+      - https_proxy=${SOCKS5_PROXY}
+      - all_proxy=${SOCKS5_PROXY}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8317/"]
       interval: 30s
