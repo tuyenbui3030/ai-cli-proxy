@@ -5,4 +5,20 @@ config.yaml
 
 # Logs
 *.log
-backups/
+
+# Backups (keep .gitkeep)
+backups/*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code local settings (keep commands)
+.claude/settings.local.json

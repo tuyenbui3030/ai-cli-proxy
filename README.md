@@ -1,218 +1,156 @@
-# CLIProxyAPI VPS Deployment
+# AI CLI Proxy Service
 
-Bộ cài đặt Docker tự động cho CLIProxyAPI với auto-update và model warmup scheduler.
+Docker-based proxy service for multiple AI providers with a unified OpenAI-compatible API.
 
-## 📦 Cấu trúc thư mục
+## Quick Start
+
+```bash
+# 1. Setup configuration
+cp config.yaml.example config.yaml
+cp .env.example .env
+
+# 2. Edit config files
+nano config.yaml  # Add your API keys
+nano .env         # Set API_TOKEN
+
+# 3. Start services
+docker compose up -d
+```
+
+## Features
+
+- **Unified API**: Single OpenAI-compatible endpoint for Gemini, Claude, Codex, etc.
+- **Management Panel**: Web UI at `http://localhost:8317`
+- **Auto Backup**: Periodic usage data backup with retention policy
+- **Auto Restore**: Restore data on service startup
+
+## Services
+
+| Service | Description | Default Port |
+|---------|-------------|--------------|
+| `cli-proxy-api` | Main API proxy service | 8317 |
+| `backup` | Periodic data backup | - |
+| `restore` | One-time data restore on startup | - |
+
+## Configuration
+
+### Environment Variables (`.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8317` | API port |
+| `TZ` | `Asia/Ho_Chi_Minh` | Timezone |
+| `API_TOKEN` | - | Token for backup/restore (must match `api-keys` in config.yaml) |
+| `BACKUP_INTERVAL` | `5` | Backup interval in minutes |
+| `BACKUP_RETENTION_DAYS` | `10` | Days to keep old backups |
+
+### Service Configuration (`config.yaml`)
+
+```yaml
+# API keys for client authentication
+api-keys:
+  - "your-api-key-here"
+
+# Management panel
+remote-management:
+  allow-remote: true
+  secret-key: "your-management-key"
+
+# Provider API keys
+gemini-api-key:
+  - api-key: "AIzaSy..."
+
+claude-api-key:
+  - api-key: "sk-ant-..."
+```
+
+## Usage
+
+### API Endpoints
+
+```bash
+# Chat completion (OpenAI compatible)
+curl -X POST http://localhost:8317/v1/chat/completions \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-claude-sonnet-4-5",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+
+# List models
+curl http://localhost:8317/v1/models \
+  -H "Authorization: Bearer your-api-key"
+```
+
+### Management
+
+```bash
+# Start all services
+docker compose up -d
+
+# View logs
+docker logs -f cli-proxy-api
+
+# Restart after config change
+docker compose restart cli-proxy-api
+
+# Stop all
+docker compose down
+```
+
+## Backup System
+
+The backup service:
+- Exports usage data every `BACKUP_INTERVAL` minutes
+- Saves to `backups/usage-YYYYMMDD_HHMMSS.json`
+- Maintains `backups/usage-latest.json` for quick restore
+- Cleans up files older than `BACKUP_RETENTION_DAYS`
+- Skips empty backups (total_requests = 0)
+
+The restore service:
+- Runs once on startup
+- Imports from `usage-latest.json` if available
+
+## File Structure
 
 ```
 ai-cli-proxy/
-├── docker-compose.yml   # Docker Compose config (3 services)
-├── config.yaml          # CLIProxyAPI config
-├── ofelia.ini           # Cron scheduler config
-├── .env                 # Environment variables (tạo từ .env.example)
-├── .env.example         # Template cho .env
-├── setup.sh             # Script cài đặt tự động
-└── auth/                # Auth files
-    └── antigravity-*.json
+├── docker-compose.yml    # Docker services
+├── config.yaml           # Service config (gitignored)
+├── config.yaml.example   # Config template
+├── .env                  # Environment vars (gitignored)
+├── .env.example          # Env template
+├── auth/                 # Auth credentials (gitignored)
+├── backups/              # Usage data backups
+├── CLAUDE.md             # AI agent context
+└── README.md             # This file
 ```
 
-## 🐳 Services
+## Security
 
-| Service | Image | Mô tả |
-|---------|-------|-------|
-| `cli-proxy-api` | `eceasy/cli-proxy-api` | API Proxy chính |
-| `ofelia` | `mcuadros/ofelia` | Cron scheduler cho model warmup |
-| `watchtower` | `containrrr/watchtower` | Auto-update container (optional) |
+- Change default `api-keys` in `config.yaml`
+- Change `remote-management.secret-key`
+- Set strong `API_TOKEN` in `.env`
+- Never commit `.env` or `config.yaml`
 
-## 🚀 Cài đặt nhanh
+## Troubleshooting
 
-### 1. Clone và cấu hình
-
+**Service won't start:**
 ```bash
-git clone <repo-url> ai-cli-proxy
-cd ai-cli-proxy
-
-# Tạo file .env
-cp .env.example .env
-
-# Sửa .env với API key của bạn
-nano .env
-```
-
-### 2. Khởi động
-
-```bash
-# Chạy API + Scheduler
-docker compose up -d cli-proxy-api ofelia
-
-# Chạy với auto-update
-docker compose --profile autoupdate up -d
-```
-
-### 3. Kiểm tra
-
-```bash
-docker compose ps
-docker logs -f cli-proxy-api
-```
-
-## ⚙️ Environment Variables
-
-| Variable | Default | Mô tả |
-|----------|---------|-------|
-| `PORT` | `8317` | Port của API |
-| `TZ` | `Asia/Ho_Chi_Minh` | Timezone |
-| `UPDATE_INTERVAL` | `3600` | Khoảng thời gian check update (giây) |
-| `TRIGGER_API_KEY` | `sk-change-this-api-key` | API key cho model warmup |
-
-## 🔧 Quản lý
-
-```bash
-# Khởi động
-docker compose up -d
-
-# Dừng
-docker compose down
-
-# Restart
-docker compose restart
-
-# Xem logs
-docker logs -f cli-proxy-api
-docker logs -f ofelia
-
-# Xem trạng thái
-docker compose ps
-```
-
-## 🌐 Endpoints
-
-| URL | Mô tả |
-|-----|-------|
-| `http://IP:8317/v1` | API Endpoint (OpenAI compatible) |
-| `http://IP:8317` | Management Panel |
-
-## ⏰ Model Warmup (Ofelia Scheduler)
-
-Tự động gọi API để warmup models vào **7h sáng mỗi ngày** (theo timezone).
-
-### Models được trigger
-
-| Model | Số lần gọi |
-|-------|------------|
-| `gemini-claude-sonnet-4-5` | 4 |
-| `gemini-3-flash-preview` | 4 |
-
-### Cấu hình schedule
-
-Sửa `ofelia.ini`:
-
-```ini
-[job-local "warmup-sonnet"]
-schedule = 0 7 * * *    # Cron: phút giờ ngày tháng thứ
-command = wget ...
-```
-
-Sau đó restart:
-
-```bash
-docker compose restart ofelia
-```
-
-### Test trigger thủ công
-
-```bash
-# Kiểm tra env var
-docker exec ofelia printenv TRIGGER_API_KEY
-
-# Test API call
-docker exec ofelia sh -c 'wget -q -O- \
-  --header="Authorization: Bearer $TRIGGER_API_KEY" \
-  --header="Content-Type: application/json" \
-  --post-data='"'"'{"model":"gemini-claude-sonnet-4-5","messages":[{"role":"user","content":"ping"}],"max_tokens":5}'"'"' \
-  https://your-domain.com/v1/chat/completions'
-```
-
-## 🔄 Auto-Update (Watchtower)
-
-Tự động update container `cli-proxy-api` khi có image mới.
-
-```bash
-# Bật auto-update
-docker compose --profile autoupdate up -d
-
-# Tắt auto-update
-docker compose stop watchtower
-```
-
-## 📝 Config Files
-
-### config.yaml
-
-Cấu hình chính của CLIProxyAPI:
-- `api-keys`: API keys để truy cập
-- `model-mappings`: Map model names
-- `remote-management`: Management panel settings
-
-```bash
-# Sửa config
-nano config.yaml
-
-# Restart để apply
-docker compose restart cli-proxy-api
-```
-
-### ofelia.ini
-
-Cấu hình cron jobs cho model warmup. Xem [Ofelia documentation](https://github.com/mcuadros/ofelia) để biết thêm.
-
-## 🔐 Bảo mật
-
-⚠️ **Quan trọng:**
-
-1. Đổi `api-keys` trong `config.yaml`
-2. Đổi `remote-management.secret-key` trong `config.yaml`
-3. Đổi `TRIGGER_API_KEY` trong `.env`
-4. Không commit file `.env` lên git
-
-## 🐛 Troubleshooting
-
-### API trả về 401 Unauthorized
-
-```bash
-# Kiểm tra API key
-docker exec ofelia printenv TRIGGER_API_KEY
-
-# So sánh với config.yaml
-grep api-keys config.yaml
-```
-
-### Ofelia không chạy jobs
-
-```bash
-# Xem logs
-docker logs ofelia
-
-# Kiểm tra config
-docker exec ofelia cat /etc/ofelia/config.ini
-```
-
-### Container không start
-
-```bash
-# Xem logs chi tiết
 docker compose logs cli-proxy-api
-
-# Kiểm tra health
-docker inspect cli-proxy-api | grep -A 10 Health
 ```
 
-## 📋 Thông tin mặc định
+**Backup not working:**
+```bash
+docker logs cli-proxy-backup
+# Verify API_TOKEN matches config.yaml api-keys
+```
 
-| Item | Value |
-|------|-------|
-| Port | `8317` |
-| API Key | `sk-change-this-api-key` |
-| Timezone | `Asia/Ho_Chi_Minh` |
-| Warmup Schedule | `0 7 * * *` (7h sáng) |
-| Auto-update Interval | `3600s` (1 giờ) |
+**401 Unauthorized:**
+- Check `Authorization: Bearer <key>` header
+- Verify key exists in `config.yaml` api-keys
+
+## License
+
+MIT
