@@ -1,7 +1,7 @@
 services:
   cli-proxy-api:
     image: eceasy/cli-proxy-api:latest
-    container_name: cli-proxy-api
+    container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-api
     restart: always
     ports:
       - "${PORT:-8317}:8317"
@@ -20,7 +20,7 @@ services:
   # Backup service - exports data every BACKUP_INTERVAL minutes
   backup:
     image: alpine:latest
-    container_name: cli-proxy-backup
+    container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-backup
     restart: always
     depends_on:
       cli-proxy-api:
@@ -66,7 +66,7 @@ services:
   # Restore service - imports data when container starts
   restore:
     image: alpine:latest
-    container_name: cli-proxy-restore
+    container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-restore
     restart: "no"
     depends_on:
       cli-proxy-api:
@@ -98,3 +98,17 @@ services:
         else
           echo "No backup file found, skipping restore"
         fi
+
+  # IP Check service - verify external IP addresses
+  ip-check:
+    build: ./ip-check
+    container_name: ${CONTAINER_PREFIX:-cli}-ip-check
+    restart: always
+    ports:
+      - "${IP_CHECK_PORT:-8327}:8327"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=${TZ:-Asia/Ho_Chi_Minh}
+      - PORT=8327
+      - TARGET_CONTAINER=${CONTAINER_PREFIX:-cli}-cli-proxy-api
