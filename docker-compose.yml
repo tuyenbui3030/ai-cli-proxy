@@ -33,12 +33,43 @@ services:
       - API_TOKEN=${API_TOKEN:-your-key-here}
       - BACKUP_INTERVAL=${BACKUP_INTERVAL:-5}
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-10}
+    stop_grace_period: 2m
     entrypoint: /bin/sh
     command:
       - -c
       - |
         apk add --no-cache curl gzip
         echo "Starting backup service (interval: $${BACKUP_INTERVAL}m, retention: $${BACKUP_RETENTION_DAYS} days)"
+
+        # Function to perform backup
+        perform_backup() {
+          TYPE=$$1
+          echo "$$(date): Starting $$TYPE backup..."
+          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+          TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
+
+          curl -s -o "$${TEMP_FILE}" \
+            -H "Authorization: Bearer $${API_TOKEN}" \
+            "$${API_URL}/v0/management/usage/export"
+
+          TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
+
+          if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
+            gzip -c "$${TEMP_FILE}" > "/backups/usage-$${TIMESTAMP}.json.gz"
+            cp "/backups/usage-$${TIMESTAMP}.json.gz" /backups/usage-latest.json.gz
+            echo "$$(date): $$TYPE backup saved to usage-$${TIMESTAMP}.json.gz ($$TOTAL_REQUESTS requests)"
+          else
+            echo "$$(date): Skipped $$TYPE backup - no data (total_requests=$$TOTAL_REQUESTS)"
+          fi
+          rm -f "$${TEMP_FILE}"
+
+          # Cleanup old backups (keep last N days)
+          find /backups -name "usage-*.json.gz" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json.gz" -delete
+        }
+
+        # Trap SIGTERM for graceful shutdown backup
+        # Important: The trap command needs to be properly set to catch the signal
+        trap 'perform_backup "SHUTDOWN"; exit 0' TERM INT
 
         # Initial cleanup: Compress legacy .json files
         echo "Checking for legacy uncompressed backups..."
@@ -47,7 +78,6 @@ services:
             echo "Compressing legacy backup: $$file"
             gzip "$$file"
           else
-             # If .gz exists but .json also exists (rare case), remove .json
              rm "$$file"
           fi
         done
@@ -64,28 +94,19 @@ services:
              rm "/backups/usage-latest.json"
         fi
 
+        # Main loop with efficient waiting
+        perform_backup "STARTUP"
+
         while true; do
-          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
-          TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
-          # Export to temp file first
-          curl -s -o "$${TEMP_FILE}" \
-            -H "Authorization: Bearer $${API_TOKEN}" \
-            "$${API_URL}/v0/management/usage/export"
-          # Check if export has valid data (total_requests > 0)
-          TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
-          if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
-            # Valid data - compress and save
-            gzip -c "$${TEMP_FILE}" > "/backups/usage-$${TIMESTAMP}.json.gz"
-            cp "/backups/usage-$${TIMESTAMP}.json.gz" /backups/usage-latest.json.gz
-            echo "$$(date): Backup saved to usage-$${TIMESTAMP}.json.gz ($$TOTAL_REQUESTS requests)"
-          else
-            # Empty data - skip updating latest
-            echo "$$(date): Skipped backup - no data (total_requests=$$TOTAL_REQUESTS)"
-          fi
-          rm -f "$${TEMP_FILE}"
-          # Cleanup old backups (keep last N days)
-          find /backups -name "usage-*.json.gz" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json.gz" -delete
-          sleep $$((BACKUP_INTERVAL * 60))
+          # Sleep in background to allow signal handling
+          # Loop for BACKUP_INTERVAL minutes
+          for i in $$(seq 1 $$((BACKUP_INTERVAL * 60))); do
+            sleep 1 &
+            wait $$!
+          done
+
+          # Perform scheduled backup
+          perform_backup "SCHEDULED"
         done
 
   # Restore service - imports data when container starts
