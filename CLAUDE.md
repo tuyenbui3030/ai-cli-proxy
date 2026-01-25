@@ -39,8 +39,8 @@ ai-cli-proxy/
 ├── auth/                 # Auth credential files (gitignored)
 │   └── antigravity-*.json
 ├── backups/              # Usage data backups (gitignored)
-│   ├── usage-latest.json
-│   └── usage-*.json
+│   ├── usage-latest.json.gz
+│   └── usage-*.json.gz
 ├── CLAUDE.md             # This file - AI agent context
 └── README.md             # User documentation
 ```
@@ -113,11 +113,11 @@ Environment variables:
 - Backups run every `BACKUP_INTERVAL` minutes (default: 5)
 - Only saves if `total_requests > 0` to avoid empty backups
 - Old backups cleaned up after `BACKUP_RETENTION_DAYS` days
-- `usage-latest.json` always contains most recent valid backup
+- `usage-latest.json.gz` always contains most recent valid backup (compressed)
 
 ### Restore System
 - Runs once on startup
-- Imports from `usage-latest.json` if exists
+- Imports from `usage-latest.json.gz` (or `usage-latest.json` if exists)
 - Container exits after restore (restart: "no")
 
 ## Troubleshooting

@@ -22,3 +22,4 @@ Thumbs.db
 
 # Claude Code local settings (keep commands)
 .claude/settings.local.json
+backups/*.json.gz

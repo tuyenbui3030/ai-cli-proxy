@@ -103,14 +103,14 @@ docker compose down
 
 The backup service:
 - Exports usage data every `BACKUP_INTERVAL` minutes
-- Saves to `backups/usage-YYYYMMDD_HHMMSS.json`
-- Maintains `backups/usage-latest.json` for quick restore
+- Saves to `backups/usage-YYYYMMDD_HHMMSS.json.gz` (gzip compressed)
+- Maintains `backups/usage-latest.json.gz` for quick restore
 - Cleans up files older than `BACKUP_RETENTION_DAYS`
 - Skips empty backups (total_requests = 0)
 
 The restore service:
 - Runs once on startup
-- Imports from `usage-latest.json` if available
+- Imports from `usage-latest.json.gz` if available (supports legacy .json too)
 
 ## File Structure
 

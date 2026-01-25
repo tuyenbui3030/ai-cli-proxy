@@ -37,8 +37,33 @@ services:
     command:
       - -c
       - |
-        apk add --no-cache curl
+        apk add --no-cache curl gzip
         echo "Starting backup service (interval: $${BACKUP_INTERVAL}m, retention: $${BACKUP_RETENTION_DAYS} days)"
+
+        # Initial cleanup: Compress legacy .json files
+        echo "Checking for legacy uncompressed backups..."
+        find /backups -name "usage-*.json" -type f ! -name "usage-latest.json" | while read -r file; do
+          if [ ! -f "$${file}.gz" ]; then
+            echo "Compressing legacy backup: $$file"
+            gzip "$$file"
+          else
+             # If .gz exists but .json also exists (rare case), remove .json
+             rm "$$file"
+          fi
+        done
+
+        # Compress usage-latest.json if it exists and usage-latest.json.gz does not
+        if [ -f "/backups/usage-latest.json" ] && [ ! -f "/backups/usage-latest.json.gz" ]; then
+             echo "Compressing usage-latest.json..."
+             gzip -c "/backups/usage-latest.json" > "/backups/usage-latest.json.gz"
+        fi
+
+        # Remove usage-latest.json if usage-latest.json.gz exists
+        if [ -f "/backups/usage-latest.json" ] && [ -f "/backups/usage-latest.json.gz" ]; then
+             echo "Removing uncompressed usage-latest.json..."
+             rm "/backups/usage-latest.json"
+        fi
+
         while true; do
           TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
           TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
@@ -49,17 +74,17 @@ services:
           # Check if export has valid data (total_requests > 0)
           TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
           if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
-            # Valid data - save timestamped and update latest
-            mv "$${TEMP_FILE}" /backups/usage-$${TIMESTAMP}.json
-            cp /backups/usage-$${TIMESTAMP}.json /backups/usage-latest.json
-            echo "$$(date): Backup saved to usage-$${TIMESTAMP}.json ($$TOTAL_REQUESTS requests)"
+            # Valid data - compress and save
+            gzip -c "$${TEMP_FILE}" > "/backups/usage-$${TIMESTAMP}.json.gz"
+            cp "/backups/usage-$${TIMESTAMP}.json.gz" /backups/usage-latest.json.gz
+            echo "$$(date): Backup saved to usage-$${TIMESTAMP}.json.gz ($$TOTAL_REQUESTS requests)"
           else
             # Empty data - skip updating latest
-            rm -f "$${TEMP_FILE}"
             echo "$$(date): Skipped backup - no data (total_requests=$$TOTAL_REQUESTS)"
           fi
+          rm -f "$${TEMP_FILE}"
           # Cleanup old backups (keep last N days)
-          find /backups -name "usage-*.json" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json" -delete
+          find /backups -name "usage-*.json.gz" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json.gz" -delete
           sleep $$((BACKUP_INTERVAL * 60))
         done
 
@@ -81,22 +106,36 @@ services:
     command:
       - -c
       - |
-        apk add --no-cache curl
-        if [ -f /backups/usage-latest.json ]; then
+        apk add --no-cache curl gzip
+        RESTORE_FILE=""
+        if [ -f /backups/usage-latest.json.gz ]; then
+          echo "Found compressed backup, extracting..."
+          gunzip -c /backups/usage-latest.json.gz > /tmp/restore.json
+          RESTORE_FILE="/tmp/restore.json"
+        elif [ -f /backups/usage-latest.json ]; then
+          echo "Found legacy backup (uncompressed)..."
+          RESTORE_FILE="/backups/usage-latest.json"
+        fi
+
+        if [ -n "$$RESTORE_FILE" ]; then
           echo "Restoring data from backup..."
           HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
             -H "Authorization: Bearer $${API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d @/backups/usage-latest.json \
+            -d @$$RESTORE_FILE \
             "$${API_URL}/v0/management/usage/import")
           if [ "$$HTTP_CODE" = "200" ]; then
             echo "$$(date): Restore successful"
           else
             echo "$$(date): Restore failed with HTTP $$HTTP_CODE"
           fi
+          # Cleanup temp file if we created it
+          if [ "$$RESTORE_FILE" = "/tmp/restore.json" ]; then
+            rm -f /tmp/restore.json
+          fi
         else
-          echo "No backup file found, skipping restore"
+          echo "No backup file found (checked usage-latest.json.gz and usage-latest.json), skipping restore"
         fi
 
   # IP Check service - verify external IP addresses

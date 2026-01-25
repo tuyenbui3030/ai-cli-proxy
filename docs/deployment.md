@@ -174,8 +174,9 @@ docker compose --profile autoupdate up -d
 
 The `backup` service automatically:
 - Exports usage data every `BACKUP_INTERVAL` minutes
+- Saves compressed backups to `backups/usage-YYYYMMDD_HHMMSS.json.gz`
 - Keeps `BACKUP_RETENTION_DAYS` days of history
-- Maintains `usage-latest.json` for quick restore
+- Maintains `usage-latest.json.gz` for quick restore
 
 ### Manual Backup
 
@@ -183,7 +184,7 @@ The `backup` service automatically:
 # Export current data
 curl -H "Authorization: Bearer $API_TOKEN" \
   http://localhost:8317/v0/management/usage/export \
-  > backup-$(date +%Y%m%d).json
+  | gzip > backup-$(date +%Y%m%d).json.gz
 ```
 
 ### Off-site Backup
