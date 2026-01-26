@@ -113,7 +113,7 @@ services:
   restore:
     image: alpine:latest
     container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-restore
-    restart: "no"
+    restart: always
     depends_on:
       cli-proxy-api:
         condition: service_healthy
@@ -158,6 +158,11 @@ services:
         else
           echo "No backup file found (checked usage-latest.json.gz and usage-latest.json), skipping restore"
         fi
+
+        echo "Restore process completed. Sleeping..."
+        # Sleep infinity to keep container running so 'restart: always' works correctly
+        # when the whole stack restarts.
+        exec sleep infinity
 
   # IP Check service - verify external IP addresses
   ip-check:
