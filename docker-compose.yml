@@ -18,151 +18,151 @@ services:
       start_period: 10s
 
   # Backup service - exports data every BACKUP_INTERVAL minutes
-  backup:
-    image: alpine:latest
-    container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-backup
-    restart: always
-    depends_on:
-      cli-proxy-api:
-        condition: service_healthy
-    volumes:
-      - ./backups:/backups
-    environment:
-      - TZ=${TZ:-Asia/Ho_Chi_Minh}
-      - API_URL=${API_URL:-http://cli-proxy-api:8317}
-      - API_TOKEN=${API_TOKEN:-your-key-here}
-      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-5}
-      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-10}
-    stop_grace_period: 2m
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        apk add --no-cache curl gzip
-        echo "Starting backup service (interval: $${BACKUP_INTERVAL}m, retention: $${BACKUP_RETENTION_DAYS} days)"
+  # backup:
+  #   image: alpine:latest
+  #   container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-backup
+  #   restart: always
+  #   depends_on:
+  #     cli-proxy-api:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./backups:/backups
+  #   environment:
+  #     - TZ=${TZ:-Asia/Ho_Chi_Minh}
+  #     - API_URL=${API_URL:-http://cli-proxy-api:8317}
+  #     - API_TOKEN=${API_TOKEN:-your-key-here}
+  #     - BACKUP_INTERVAL=${BACKUP_INTERVAL:-5}
+  #     - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-10}
+  #   stop_grace_period: 2m
+  #   entrypoint: /bin/sh
+  #   command:
+  #     - -c
+  #     - |
+  #       apk add --no-cache curl gzip
+  #       echo "Starting backup service (interval: $${BACKUP_INTERVAL}m, retention: $${BACKUP_RETENTION_DAYS} days)"
 
-        # Function to perform backup
-        perform_backup() {
-          TYPE=$$1
-          echo "$$(date): Starting $$TYPE backup..."
-          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
-          TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
+  #       # Function to perform backup
+  #       perform_backup() {
+  #         TYPE=$$1
+  #         echo "$$(date): Starting $$TYPE backup..."
+  #         TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+  #         TEMP_FILE="/tmp/usage-$${TIMESTAMP}.json"
 
-          curl -s -o "$${TEMP_FILE}" \
-            -H "Authorization: Bearer $${API_TOKEN}" \
-            "$${API_URL}/v0/management/usage/export"
+  #         curl -s -o "$${TEMP_FILE}" \
+  #           -H "Authorization: Bearer $${API_TOKEN}" \
+  #           "$${API_URL}/v0/management/usage/export"
 
-          TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
+  #         TOTAL_REQUESTS=$$(grep -o '"total_requests":[0-9]*' "$${TEMP_FILE}" | head -1 | cut -d: -f2)
 
-          if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
-            gzip -c "$${TEMP_FILE}" > "/backups/usage-$${TIMESTAMP}.json.gz"
-            cp "/backups/usage-$${TIMESTAMP}.json.gz" /backups/usage-latest.json.gz
-            echo "$$(date): $$TYPE backup saved to usage-$${TIMESTAMP}.json.gz ($$TOTAL_REQUESTS requests)"
-          else
-            echo "$$(date): Skipped $$TYPE backup - no data (total_requests=$$TOTAL_REQUESTS)"
-          fi
-          rm -f "$${TEMP_FILE}"
+  #         if [ -n "$$TOTAL_REQUESTS" ] && [ "$$TOTAL_REQUESTS" -gt 0 ]; then
+  #           gzip -c "$${TEMP_FILE}" > "/backups/usage-$${TIMESTAMP}.json.gz"
+  #           cp "/backups/usage-$${TIMESTAMP}.json.gz" /backups/usage-latest.json.gz
+  #           echo "$$(date): $$TYPE backup saved to usage-$${TIMESTAMP}.json.gz ($$TOTAL_REQUESTS requests)"
+  #         else
+  #           echo "$$(date): Skipped $$TYPE backup - no data (total_requests=$$TOTAL_REQUESTS)"
+  #         fi
+  #         rm -f "$${TEMP_FILE}"
 
-          # Cleanup old backups (keep last N days)
-          find /backups -name "usage-*.json.gz" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json.gz" -delete
-        }
+  #         # Cleanup old backups (keep last N days)
+  #         find /backups -name "usage-*.json.gz" -type f -mtime +$${BACKUP_RETENTION_DAYS} ! -name "usage-latest.json.gz" -delete
+  #       }
 
-        # Trap SIGTERM for graceful shutdown backup
-        # Important: The trap command needs to be properly set to catch the signal
-        trap 'perform_backup "SHUTDOWN"; exit 0' TERM INT
+  #       # Trap SIGTERM for graceful shutdown backup
+  #       # Important: The trap command needs to be properly set to catch the signal
+  #       trap 'perform_backup "SHUTDOWN"; exit 0' TERM INT
 
-        # Initial cleanup: Compress legacy .json files
-        echo "Checking for legacy uncompressed backups..."
-        find /backups -name "usage-*.json" -type f ! -name "usage-latest.json" | while read -r file; do
-          if [ ! -f "$${file}.gz" ]; then
-            echo "Compressing legacy backup: $$file"
-            gzip "$$file"
-          else
-             rm "$$file"
-          fi
-        done
+  #       # Initial cleanup: Compress legacy .json files
+  #       echo "Checking for legacy uncompressed backups..."
+  #       find /backups -name "usage-*.json" -type f ! -name "usage-latest.json" | while read -r file; do
+  #         if [ ! -f "$${file}.gz" ]; then
+  #           echo "Compressing legacy backup: $$file"
+  #           gzip "$$file"
+  #         else
+  #            rm "$$file"
+  #         fi
+  #       done
 
-        # Compress usage-latest.json if it exists and usage-latest.json.gz does not
-        if [ -f "/backups/usage-latest.json" ] && [ ! -f "/backups/usage-latest.json.gz" ]; then
-             echo "Compressing usage-latest.json..."
-             gzip -c "/backups/usage-latest.json" > "/backups/usage-latest.json.gz"
-        fi
+  #       # Compress usage-latest.json if it exists and usage-latest.json.gz does not
+  #       if [ -f "/backups/usage-latest.json" ] && [ ! -f "/backups/usage-latest.json.gz" ]; then
+  #            echo "Compressing usage-latest.json..."
+  #            gzip -c "/backups/usage-latest.json" > "/backups/usage-latest.json.gz"
+  #       fi
 
-        # Remove usage-latest.json if usage-latest.json.gz exists
-        if [ -f "/backups/usage-latest.json" ] && [ -f "/backups/usage-latest.json.gz" ]; then
-             echo "Removing uncompressed usage-latest.json..."
-             rm "/backups/usage-latest.json"
-        fi
+  #       # Remove usage-latest.json if usage-latest.json.gz exists
+  #       if [ -f "/backups/usage-latest.json" ] && [ -f "/backups/usage-latest.json.gz" ]; then
+  #            echo "Removing uncompressed usage-latest.json..."
+  #            rm "/backups/usage-latest.json"
+  #       fi
 
-        # Main loop with efficient waiting
-        perform_backup "STARTUP"
+  #       # Main loop with efficient waiting
+  #       perform_backup "STARTUP"
 
-        while true; do
-          # Sleep in background to allow signal handling
-          # Loop for BACKUP_INTERVAL minutes
-          for i in $$(seq 1 $$((BACKUP_INTERVAL * 60))); do
-            sleep 1 &
-            wait $$!
-          done
+  #       while true; do
+  #         # Sleep in background to allow signal handling
+  #         # Loop for BACKUP_INTERVAL minutes
+  #         for i in $$(seq 1 $$((BACKUP_INTERVAL * 60))); do
+  #           sleep 1 &
+  #           wait $$!
+  #         done
 
-          # Perform scheduled backup
-          perform_backup "SCHEDULED"
-        done
+  #         # Perform scheduled backup
+  #         perform_backup "SCHEDULED"
+  #       done
 
-  # Restore service - imports data when container starts
-  restore:
-    image: alpine:latest
-    container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-restore
-    restart: always
-    depends_on:
-      cli-proxy-api:
-        condition: service_healthy
-    volumes:
-      - ./backups:/backups
-    environment:
-      - TZ=${TZ:-Asia/Ho_Chi_Minh}
-      - API_URL=${API_URL:-http://cli-proxy-api:8317}
-      - API_TOKEN=${API_TOKEN:-afternoon-curry-silly-eraser-dimness-turbine}
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        apk add --no-cache curl gzip
-        RESTORE_FILE=""
-        if [ -f /backups/usage-latest.json.gz ]; then
-          echo "Found compressed backup, extracting..."
-          gunzip -c /backups/usage-latest.json.gz > /tmp/restore.json
-          RESTORE_FILE="/tmp/restore.json"
-        elif [ -f /backups/usage-latest.json ]; then
-          echo "Found legacy backup (uncompressed)..."
-          RESTORE_FILE="/backups/usage-latest.json"
-        fi
+  # # Restore service - imports data when container starts
+  # restore:
+  #   image: alpine:latest
+  #   container_name: ${CONTAINER_PREFIX:-cli}-cli-proxy-restore
+  #   restart: always
+  #   depends_on:
+  #     cli-proxy-api:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./backups:/backups
+  #   environment:
+  #     - TZ=${TZ:-Asia/Ho_Chi_Minh}
+  #     - API_URL=${API_URL:-http://cli-proxy-api:8317}
+  #     - API_TOKEN=${API_TOKEN:-afternoon-curry-silly-eraser-dimness-turbine}
+  #   entrypoint: /bin/sh
+  #   command:
+  #     - -c
+  #     - |
+  #       apk add --no-cache curl gzip
+  #       RESTORE_FILE=""
+  #       if [ -f /backups/usage-latest.json.gz ]; then
+  #         echo "Found compressed backup, extracting..."
+  #         gunzip -c /backups/usage-latest.json.gz > /tmp/restore.json
+  #         RESTORE_FILE="/tmp/restore.json"
+  #       elif [ -f /backups/usage-latest.json ]; then
+  #         echo "Found legacy backup (uncompressed)..."
+  #         RESTORE_FILE="/backups/usage-latest.json"
+  #       fi
 
-        if [ -n "$$RESTORE_FILE" ]; then
-          echo "Restoring data from backup..."
-          HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer $${API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d @$$RESTORE_FILE \
-            "$${API_URL}/v0/management/usage/import")
-          if [ "$$HTTP_CODE" = "200" ]; then
-            echo "$$(date): Restore successful"
-          else
-            echo "$$(date): Restore failed with HTTP $$HTTP_CODE"
-          fi
-          # Cleanup temp file if we created it
-          if [ "$$RESTORE_FILE" = "/tmp/restore.json" ]; then
-            rm -f /tmp/restore.json
-          fi
-        else
-          echo "No backup file found (checked usage-latest.json.gz and usage-latest.json), skipping restore"
-        fi
+  #       if [ -n "$$RESTORE_FILE" ]; then
+  #         echo "Restoring data from backup..."
+  #         HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" \
+  #           -X POST \
+  #           -H "Authorization: Bearer $${API_TOKEN}" \
+  #           -H "Content-Type: application/json" \
+  #           -d @$$RESTORE_FILE \
+  #           "$${API_URL}/v0/management/usage/import")
+  #         if [ "$$HTTP_CODE" = "200" ]; then
+  #           echo "$$(date): Restore successful"
+  #         else
+  #           echo "$$(date): Restore failed with HTTP $$HTTP_CODE"
+  #         fi
+  #         # Cleanup temp file if we created it
+  #         if [ "$$RESTORE_FILE" = "/tmp/restore.json" ]; then
+  #           rm -f /tmp/restore.json
+  #         fi
+  #       else
+  #         echo "No backup file found (checked usage-latest.json.gz and usage-latest.json), skipping restore"
+  #       fi
 
-        echo "Restore process completed. Sleeping..."
-        # Sleep infinity to keep container running so 'restart: always' works correctly
-        # when the whole stack restarts.
-        exec sleep infinity
+  #       echo "Restore process completed. Sleeping..."
+  #       # Sleep infinity to keep container running so 'restart: always' works correctly
+  #       # when the whole stack restarts.
+  #       exec sleep infinity
 
   # IP Check service - verify external IP addresses
   ip-check:
