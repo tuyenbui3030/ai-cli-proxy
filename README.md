@@ -151,6 +151,6 @@ docker logs cli-proxy-backup
 - Check `Authorization: Bearer <key>` header
 - Verify key exists in `config.yaml` api-keys
 
-## License
+## License 2026
 
 MIT
