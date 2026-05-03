@@ -15,16 +15,16 @@ This is a **Docker-based AI CLI Proxy Service** that proxies requests to various
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Compose Stack                      │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│  cli-proxy-api  │     backup      │        restore          │
-│  (Main Service) │  (Scheduled)    │     (One-time)          │
-│                 │                 │                         │
-│  - API Proxy    │  - Export data  │  - Import data          │
-│  - Management   │  - Cleanup old  │  - Run on startup       │
-│  - Auth         │  - Every 5min   │                         │
-└─────────────────┴─────────────────┴─────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Docker Compose Stack                             │
+├─────────────────┬─────────────────┬─────────────────┬────────────────────┤
+│  cli-proxy-api  │     backup      │     restore     │ cpa-usage-keeper   │
+│  (Main Service) │  (Scheduled)    │   (One-time)    │   (Dashboard)      │
+│                 │                 │                 │                    │
+│  - API Proxy    │  - Export data  │  - Import data  │  - Usage tracking  │
+│  - Management   │  - Cleanup old  │  - On startup   │  - Web dashboard   │
+│  - Auth         │  - Every 5min   │                 │  - SQLite storage  │
+└─────────────────┴─────────────────┴─────────────────┴────────────────────┘
 ```
 
 ## File Structure
@@ -41,6 +41,9 @@ ai-cli-proxy/
 ├── backups/              # Usage data backups (gitignored)
 │   ├── usage-latest.json.gz
 │   └── usage-*.json.gz
+├── cpa-data/             # CPA Usage Keeper data (gitignored)
+│   ├── cpa.db            # SQLite database
+│   └── backups/          # Keeper raw backups
 ├── CLAUDE.md             # This file - AI agent context
 └── README.md             # User documentation
 ```
@@ -52,6 +55,7 @@ ai-cli-proxy/
 | `cli-proxy-api` | `eceasy/cli-proxy-api:latest` | 8317 | Main API proxy |
 | `backup` | `alpine:latest` | - | Periodic data backup |
 | `restore` | `alpine:latest` | - | One-time data restore |
+| `cpa-usage-keeper` | `ghcr.io/willxup/cpa-usage-keeper:latest` | 8080 | Usage tracking dashboard |
 
 ## Common Operations
 
@@ -119,6 +123,14 @@ Environment variables:
 - Runs once on startup
 - Imports from `usage-latest.json.gz` (or `usage-latest.json` if exists)
 - Container exits after restore (restart: "no")
+
+### CPA Usage Keeper
+- External dashboard for CPA usage stats: https://github.com/Willxup/cpa-usage-keeper
+- Connects to `cli-proxy-api` over the internal Docker network at `http://cli-proxy-api:8317`
+- Requires `CPA_MANAGEMENT_KEY` to match a key in `config.yaml > api-keys`
+- Stores SQLite DB and raw backups under `./cpa-data` (mounted to `/data`)
+- Dashboard exposed at `http://host:${KEEPER_PORT:-8080}`
+- Auth enabled by default (`AUTH_ENABLED=true`) — set `LOGIN_PASSWORD` in `.env`
 
 ## Troubleshooting
 

@@ -9,6 +9,9 @@ config.yaml
 # Backups (keep .gitkeep)
 backups/*.json
 
+# CPA Usage Keeper data
+cpa-data/
+
 # OS files
 .DS_Store
 Thumbs.db
