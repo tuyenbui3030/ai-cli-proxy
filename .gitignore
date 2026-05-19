@@ -12,6 +12,9 @@ backups/*.json
 # CPA Usage Keeper data
 cpa-data/
 
+# CPA Manager data
+cpa-manager-data/
+
 # OS files
 .DS_Store
 Thumbs.db

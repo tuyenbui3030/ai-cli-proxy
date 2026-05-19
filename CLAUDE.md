@@ -24,7 +24,13 @@ This is a **Docker-based AI CLI Proxy Service** that proxies requests to various
 │  - API Proxy    │  - Export data  │  - Import data  │  - Usage tracking  │
 │  - Management   │  - Cleanup old  │  - On startup   │  - Web dashboard   │
 │  - Auth         │  - Every 5min   │                 │  - SQLite storage  │
-└─────────────────┴─────────────────┴─────────────────┴────────────────────┘
+├─────────────────┴─────────────────┴─────────────────┴────────────────────┤
+│                              cpa-manager                                   │
+│                          (Management WebUI)                                │
+│                                                                           │
+│  - Config management    - Quota monitoring    - Log viewing                │
+│  - Auth file management - Codex inspection    - Usage analytics            │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## File Structure
@@ -44,6 +50,8 @@ ai-cli-proxy/
 ├── cpa-data/             # CPA Usage Keeper data (gitignored)
 │   ├── cpa.db            # SQLite database
 │   └── backups/          # Keeper raw backups
+├── cpa-manager-data/     # CPA Manager data (gitignored)
+│   └── usage.sqlite      # Manager SQLite database
 ├── CLAUDE.md             # This file - AI agent context
 └── README.md             # User documentation
 ```
@@ -56,6 +64,7 @@ ai-cli-proxy/
 | `backup` | `alpine:latest` | - | Periodic data backup |
 | `restore` | `alpine:latest` | - | One-time data restore |
 | `cpa-usage-keeper` | `ghcr.io/willxup/cpa-usage-keeper:latest` | 8080 | Usage tracking dashboard |
+| `cpa-manager` | `seakee/cpa-manager:latest` | 18317 | Management WebUI + Usage Service |
 
 ## Common Operations
 
@@ -68,6 +77,7 @@ docker compose up -d cli-proxy-api backup
 ```bash
 docker logs -f cli-proxy-api
 docker logs -f cli-proxy-backup
+docker logs -f cli-proxy-cpa-manager
 ```
 
 ### Restart After Config Change
@@ -131,6 +141,15 @@ Environment variables:
 - Stores SQLite DB and raw backups under `./cpa-data` (mounted to `/data`)
 - Dashboard exposed at `http://host:${KEEPER_PORT:-8080}`
 - Auth enabled by default (`AUTH_ENABLED=true`) — set `LOGIN_PASSWORD` in `.env`
+
+### CPA Manager
+- Management WebUI + Usage Service for CPA: https://github.com/seakee/CPA-Manager
+- Runs in Full Docker Mode — serves management panel, collects usage, proxies management calls to CPA
+- Connects to `cli-proxy-api` over the internal Docker network at `http://cli-proxy-api:8317`
+- Requires `CPA_MANAGEMENT_KEY` to match a key in `config.yaml > api-keys`
+- Stores SQLite DB under `./cpa-manager-data` (mounted to `/data`)
+- Dashboard exposed at `http://host:${MANAGER_PORT:-18317}/management.html`
+- First setup: enter CPA URL (`http://cli-proxy-api:8317`) + Management Key in the setup wizard
 
 ## Troubleshooting
 

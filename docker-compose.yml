@@ -24,37 +24,54 @@ services:
       retries: 3
       start_period: 10s
 
-  cpa-usage-keeper:
-    image: ghcr.io/willxup/cpa-usage-keeper:latest
-    container_name: ${CONTAINER_PREFIX:-cli}-cpa-usage-keeper
+  # cpa-usage-keeper:
+  #   image: ghcr.io/willxup/cpa-usage-keeper:latest
+  #   container_name: ${CONTAINER_PREFIX:-cli}-cpa-usage-keeper
+  #   restart: unless-stopped
+  #   logging: *default-logging
+  #   ports:
+  #     - "${KEEPER_PORT:-8080}:8080"
+  #   volumes:
+  #     - ./cpa-data:/data
+  #   environment:
+  #     - CPA_BASE_URL=http://cli-proxy-api:8317
+  #     - CPA_MANAGEMENT_KEY=${CPA_MANAGEMENT_KEY}
+  #     - AUTH_ENABLED=${AUTH_ENABLED:-true}
+  #     - LOGIN_PASSWORD=${LOGIN_PASSWORD}
+  #     - AUTH_SESSION_TTL=${AUTH_SESSION_TTL:-168h}
+  #     - APP_PORT=8080
+  #     - APP_BASE_PATH=${APP_BASE_PATH:-}
+  #     - TZ=${TZ:-Asia/Ho_Chi_Minh}
+  #     - USAGE_SYNC_MODE=${USAGE_SYNC_MODE:-auto}
+  #     - REDIS_QUEUE_ADDR=${REDIS_QUEUE_ADDR:-}
+  #     - REDIS_QUEUE_BATCH_SIZE=${REDIS_QUEUE_BATCH_SIZE:-1000}
+  #     - REDIS_QUEUE_IDLE_INTERVAL=${REDIS_QUEUE_IDLE_INTERVAL:-1s}
+  #     - POLL_INTERVAL=${KEEPER_POLL_INTERVAL:-5m}
+  #     - REQUEST_TIMEOUT=${KEEPER_REQUEST_TIMEOUT:-30s}
+  #     - WORK_DIR=/data
+  #     - LOG_LEVEL=${KEEPER_LOG_LEVEL:-info}
+  #     - LOG_FILE_ENABLED=${KEEPER_LOG_FILE_ENABLED:-true}
+  #     - LOG_RETENTION_DAYS=${KEEPER_LOG_RETENTION_DAYS:-7}
+  #     - BACKUP_ENABLED=${KEEPER_BACKUP_ENABLED:-true}
+  #     - BACKUP_INTERVAL=${KEEPER_BACKUP_INTERVAL:-1h}
+  #     - BACKUP_RETENTION_DAYS=${KEEPER_BACKUP_RETENTION_DAYS:-30}
+  #   depends_on:
+  #     cli-proxy-api:
+  #       condition: service_healthy
+
+  cpa-manager:
+    image: seakee/cpa-manager:latest
+    container_name: ${CONTAINER_PREFIX:-cli}-cpa-manager
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${KEEPER_PORT:-8080}:8080"
+      - "${MANAGER_PORT:-18317}:18317"
     volumes:
-      - ./cpa-data:/data
+      - ./cpa-manager-data:/data
     environment:
-      - CPA_BASE_URL=http://cli-proxy-api:8317
+      - CPA_UPSTREAM_URL=http://cli-proxy-api:8317
       - CPA_MANAGEMENT_KEY=${CPA_MANAGEMENT_KEY}
-      - AUTH_ENABLED=${AUTH_ENABLED:-true}
-      - LOGIN_PASSWORD=${LOGIN_PASSWORD}
-      - AUTH_SESSION_TTL=${AUTH_SESSION_TTL:-168h}
-      - APP_PORT=8080
-      - APP_BASE_PATH=${APP_BASE_PATH:-}
       - TZ=${TZ:-Asia/Ho_Chi_Minh}
-      - USAGE_SYNC_MODE=${USAGE_SYNC_MODE:-auto}
-      - REDIS_QUEUE_ADDR=${REDIS_QUEUE_ADDR:-}
-      - REDIS_QUEUE_BATCH_SIZE=${REDIS_QUEUE_BATCH_SIZE:-1000}
-      - REDIS_QUEUE_IDLE_INTERVAL=${REDIS_QUEUE_IDLE_INTERVAL:-1s}
-      - POLL_INTERVAL=${KEEPER_POLL_INTERVAL:-5m}
-      - REQUEST_TIMEOUT=${KEEPER_REQUEST_TIMEOUT:-30s}
-      - WORK_DIR=/data
-      - LOG_LEVEL=${KEEPER_LOG_LEVEL:-info}
-      - LOG_FILE_ENABLED=${KEEPER_LOG_FILE_ENABLED:-true}
-      - LOG_RETENTION_DAYS=${KEEPER_LOG_RETENTION_DAYS:-7}
-      - BACKUP_ENABLED=${KEEPER_BACKUP_ENABLED:-true}
-      - BACKUP_INTERVAL=${KEEPER_BACKUP_INTERVAL:-1h}
-      - BACKUP_RETENTION_DAYS=${KEEPER_BACKUP_RETENTION_DAYS:-30}
     depends_on:
       cli-proxy-api:
         condition: service_healthy
