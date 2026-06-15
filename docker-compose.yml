@@ -18,7 +18,7 @@ services:
     environment:
       - TZ=${TZ:-Asia/Ho_Chi_Minh}
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8317/"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8317'"]
       interval: 30s
       timeout: 10s
       retries: 3
