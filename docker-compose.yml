@@ -62,7 +62,7 @@ services:
   cpa-manager:
     image: seakee/cpa-manager:latest
     container_name: ${CONTAINER_PREFIX:-cli}-cpa-manager
-    restart: unless-stopped
+    restart: always
     logging: *default-logging
     ports:
       - "${MANAGER_PORT:-18317}:18317"
